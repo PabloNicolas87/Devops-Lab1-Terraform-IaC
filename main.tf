@@ -9,8 +9,7 @@ terraform {
 
 provider "aws" {
   region  = var.region
-  profile = "terraform-assumido" # usamos el perfil que asume el rol
-}
+  profile = "terraform-assumido"
 
 # --------------------------
 # Repositorio ECR

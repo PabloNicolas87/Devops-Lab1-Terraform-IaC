@@ -1,6 +1,6 @@
 variable "region" {
   description = "Región donde se desplegarán los recursos"
-  default     = "us-east-1"
+  default     = "us-east-2"
 }
 
 variable "ami_id" {
