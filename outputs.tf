@@ -1,14 +1,14 @@
-output "ecr_repository_url" {
-  description = "URL del repositorio ECR"
-  value       = aws_ecr_repository.app_repo.repository_url
+output "elastic_ip" {
+  description = "Dirección IP elástica asignada a la instancia"
+  value       = aws_eip.app_eip.public_ip
 }
 
-output "ec2_instance_id" {
-  description = "ID de la instancia EC2 creada"
+output "instance_id" {
+  description = "ID de la instancia EC2"
   value       = aws_instance.app_server.id
 }
 
-output "ec2_public_ip" {
-  description = "Elastic IP pública asignada a la instancia EC2"
-  value       = aws_eip.app_ip.public_ip
+output "app_url" {
+  description = "URL para acceder a la app desplegada"
+  value       = "http://${aws_eip.app_eip.public_ip}"
 }
