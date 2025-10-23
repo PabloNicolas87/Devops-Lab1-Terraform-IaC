@@ -10,6 +10,7 @@ terraform {
 provider "aws" {
   region  = var.region
   profile = "terraform-assumido"
+}
 
 # --------------------------
 # Repositorio ECR
