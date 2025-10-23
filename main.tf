@@ -23,13 +23,13 @@ resource "aws_ecr_repository" "app_repo" {
 # Instancia EC2
 # --------------------------
 resource "aws_instance" "app_server" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  subnet_id              = "subnet-059b5e9a4cde735e4"      # subnet pública
-  vpc_security_group_ids = ["sg-0e072a509dd0bbfe9"]        # grupo de seguridad existente
+  ami                         = var.ami_id
+  instance_type               = var.instance_type
+  subnet_id                   = "subnet-059b5e9a4cde735e4" # subnet pública
+  vpc_security_group_ids      = ["sg-0e072a509dd0bbfe9"]   # grupo de seguridad existente
   associate_public_ip_address = true
-  key_name               = "ec2-docker-key"
-  iam_instance_profile   = "Rol-Instancia-Despliegue-EC2"
+  key_name                    = "ec2-docker-key"
+  iam_instance_profile        = "Rol-Instancia-Despliegue-EC2"
 
   user_data = <<-EOF
               #!/bin/bash
@@ -58,22 +58,4 @@ resource "aws_eip" "app_eip" {
   tags = {
     Name = "proyectobase-eip"
   }
-}
-
-# --------------------------
-# Salidas
-# --------------------------
-output "elastic_ip" {
-  description = "Dirección IP elástica asignada a la instancia"
-  value       = aws_eip.app_eip.public_ip
-}
-
-output "instance_id" {
-  description = "ID de la instancia EC2"
-  value       = aws_instance.app_server.id
-}
-
-output "app_url" {
-  description = "URL para acceder a la app desplegada"
-  value       = "http://${aws_eip.app_eip.public_ip}"
 }
