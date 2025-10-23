@@ -5,7 +5,7 @@ variable "region" {
 
 variable "ami_id" {
   description = "AMI Amazon Linux 2023 apta para free tier"
-  default     = "ami-0341d95f75f311023"
+  default     = "ami-0199d4b5b8b4fde0e"
 }
 
 variable "instance_type" {
