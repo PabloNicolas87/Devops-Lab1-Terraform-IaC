@@ -36,5 +36,5 @@ resource "aws_instance" "app_server" {
 # --------------------------
 resource "aws_eip" "app_ip" {
   instance = aws_instance.app_server.id
-  vpc      = true
+  domain   = "vpc"
 }
