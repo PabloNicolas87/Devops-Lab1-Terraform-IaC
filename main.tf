@@ -1,3 +1,7 @@
+##############################################
+# 0. CONFIGURACIÓN BASE
+##############################################
+
 terraform {
   required_providers {
     aws = {
@@ -7,108 +11,123 @@ terraform {
   }
 }
 
+# --- Proveedor AWS ---
 provider "aws" {
   region  = var.region
   profile = "terraform-assumido"
+
+  # Etiquetas automáticas para todos los recursos
+  default_tags {
+    tags = {
+      Project = "proyectobase"
+      Env     = "lab"
+      Owner   = "Pablo"
+    }
+  }
 }
 
-# --------------------------
-# 1. IAM ROLE PARA EC2
-# --------------------------
+# --- Datos dinámicos útiles ---
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+locals {
+  account_id = data.aws_caller_identity.current.account_id
+  region     = data.aws_region.current.name
+  repo_name  = "proyectobase-runtime"
+  image_tag  = "latest"
+}
+
+##############################################
+# 1. IAM ROLE Y PERFIL PARA EC2
+##############################################
+
+# Rol para que EC2 pueda acceder a ECR y SSM
 resource "aws_iam_role" "ec2_role" {
   name = "Rol-Instancia-Despliegue-EC2"
 
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [
       {
-        Action = "sts:AssumeRole"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-        Effect = "Allow"
+        Effect = "Allow",
+        Principal = { Service = "ec2.amazonaws.com" },
+        Action    = "sts:AssumeRole"
       }
     ]
   })
 }
 
-# Políticas necesarias (ECR + CloudWatch + SSM)
-resource "aws_iam_role_policy_attachment" "ecr_access" {
+# Permiso de solo lectura a ECR
+resource "aws_iam_role_policy_attachment" "ecr_readonly" {
   role       = aws_iam_role.ec2_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+# Permiso para acceder por Session Manager (SSM)
 resource "aws_iam_role_policy_attachment" "ssm_access" {
   role       = aws_iam_role.ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# Perfil de instancia que vincula el rol a la EC2
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "Rol-Instancia-Despliegue-EC2"
   role = aws_iam_role.ec2_role.name
+  depends_on = [aws_iam_role.ec2_role]
 }
 
-# --------------------------
-# 2. NETWORKING (VPC)
-# --------------------------
-resource "aws_vpc" "main_vpc" {
+##############################################
+# 2. NETWORKING
+##############################################
+
+resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
-  tags = { Name = "vpc-laboratorio-fargate" }
+  tags = { Name = "proyectobase-vpc" }
 }
 
 resource "aws_internet_gateway" "gw" {
-  vpc_id = aws_vpc.main_vpc.id
-  tags = { Name = "igw-laboratorio-fargate" }
+  vpc_id = aws_vpc.main.id
+  tags = { Name = "proyectobase-igw" }
 }
 
-resource "aws_subnet" "public_subnet_a" {
-  vpc_id                  = aws_vpc.main_vpc.id
+resource "aws_subnet" "public_a" {
+  vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "${var.region}a"
   map_public_ip_on_launch = true
-  tags = { Name = "subnet-publica-a" }
+  tags = { Name = "proyectobase-subnet-public-a" }
 }
 
-resource "aws_route_table" "public_rt" {
-  vpc_id = aws_vpc.main_vpc.id
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.gw.id
   }
-  tags = { Name = "rtb-laboratorio-fargate" }
+  tags = { Name = "proyectobase-rt-public" }
 }
 
-resource "aws_route_table_association" "public_rt_assoc" {
-  subnet_id      = aws_subnet.public_subnet_a.id
-  route_table_id = aws_route_table.public_rt.id
+resource "aws_route_table_association" "public_a" {
+  subnet_id      = aws_subnet.public_a.id
+  route_table_id = aws_route_table.public.id
 }
 
-# --------------------------
+##############################################
 # 3. SECURITY GROUP
-# --------------------------
+##############################################
+
 resource "aws_security_group" "web_sg" {
-  name        = "fargate-web-access-final"
-  description = "Permitir HTTP y SSH"
-  vpc_id      = aws_vpc.main_vpc.id
+  name        = "proyectobase-sg"
+  description = "Permitir tráfico HTTP público"
+  vpc_id      = aws_vpc.main.id
 
   ingress = [
     {
-      description = "HTTP"
-      from_port   = 80
-      to_port     = 80
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
-      security_groups  = []
-      self             = false
-    },
-    {
-      description = "SSH"
-      from_port   = 22
-      to_port     = 22
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      description      = "HTTP público"
+      from_port        = 80
+      to_port          = 80
+      protocol         = "tcp"
+      cidr_blocks      = ["0.0.0.0/0"]
       ipv6_cidr_blocks = []
       prefix_list_ids  = []
       security_groups  = []
@@ -118,11 +137,11 @@ resource "aws_security_group" "web_sg" {
 
   egress = [
     {
-      description = "Allow all outbound traffic"
-      from_port   = 0
-      to_port     = 0
-      protocol    = "-1"
-      cidr_blocks = ["0.0.0.0/0"]
+      description      = "Salida libre"
+      from_port        = 0
+      to_port          = 0
+      protocol         = "-1"
+      cidr_blocks      = ["0.0.0.0/0"]
       ipv6_cidr_blocks = []
       prefix_list_ids  = []
       security_groups  = []
@@ -130,81 +149,63 @@ resource "aws_security_group" "web_sg" {
     }
   ]
 
-  tags = { Name = "fargate-web-access-final" }
+  tags = { Name = "proyectobase-sg" }
 }
 
-# --------------------------
-# 4. PAR DE CLAVES SSH
-# --------------------------
-resource "tls_private_key" "ec2_key" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
+##############################################
+# 4. REPOSITORIO ECR
+##############################################
 
-resource "aws_key_pair" "ec2_keypair" {
-  key_name   = "ec2-docker-key"
-  public_key = tls_private_key.ec2_key.public_key_openssh
-}
-
-# Guardar el .pem localmente
-resource "local_file" "private_key_pem" {
-  filename = "${path.module}/ec2-docker-key.pem"
-  content  = tls_private_key.ec2_key.private_key_pem
-  file_permission = "0400"
-}
-
-# --------------------------
-# 5. REPOSITORIO ECR
-# --------------------------
 resource "aws_ecr_repository" "app_repo" {
-  name         = "proyectobase-runtime"
+  name         = local.repo_name
   force_delete = true
+  tags         = { Name = "proyectobase-ecr" }
 }
 
-# --------------------------
-# 6. INSTANCIA EC2
-# --------------------------
+##############################################
+# 5. INSTANCIA EC2
+##############################################
+
 resource "aws_instance" "app_server" {
-  ami                         = var.ami_id
-  instance_type                = var.instance_type
-  subnet_id                    = aws_subnet.public_subnet_a.id
-  vpc_security_group_ids       = [aws_security_group.web_sg.id]
-  associate_public_ip_address  = true
-  key_name                     = aws_key_pair.ec2_keypair.key_name
-  iam_instance_profile         = aws_iam_instance_profile.ec2_profile.name
+  ami                        = var.ami_id
+  instance_type               = var.instance_type
+  subnet_id                   = aws_subnet.public_a.id
+  vpc_security_group_ids      = [aws_security_group.web_sg.id]
+  associate_public_ip_address = true
+  iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
 
   user_data = <<-EOF
-              #!/bin/bash
-              echo "=== Inicializando instancia EC2 ===" > /var/log/userdata.log
+    #!/bin/bash
+    set -euxo pipefail
 
-              sudo dnf update -y
-              sudo dnf install docker -y
-              sudo systemctl enable docker
-              sudo systemctl start docker
-              sudo usermod -aG docker ec2-user
+    REGION="${var.region}"
+    ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+    REPO_NAME="${local.repo_name}"
+    IMAGE_URL="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME:${local.image_tag}"
 
-              sudo dnf install -y amazon-ssm-agent
-              sudo systemctl enable amazon-ssm-agent
-              sudo systemctl start amazon-ssm-agent
+    echo "=== Instalando Docker ==="
+    dnf update -y
+    dnf install -y docker
+    systemctl enable --now docker
+    usermod -aG docker ec2-user
 
-              REGION="${var.region}"
-              ACCOUNT_ID="842944705828"
-              REPO_NAME="proyectobase-runtime"
-              IMAGE_URL="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME:latest"
+    echo "=== Login en ECR ==="
+    aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
 
-              sudo aws ecr get-login-password --region $REGION | sudo docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
-              sudo docker pull $IMAGE_URL
-              sudo docker run -d -p 80:80 $IMAGE_URL
+    echo "=== Ejecutando contenedor ==="
+    docker pull "$IMAGE_URL"
+    docker run -d --restart always -p 80:80 "$IMAGE_URL"
 
-              echo "=== EC2 lista con Docker ejecutando contenedor ===" >> /var/log/userdata.log
-              EOF
+    echo "=== Setup completado ==="
+  EOF
 
   tags = { Name = "proyectobase-ec2" }
 }
 
-# --------------------------
-# 7. ELASTIC IP + ASOCIACIÓN
-# --------------------------
+##############################################
+# 6. ELASTIC IP
+##############################################
+
 resource "aws_eip" "app_eip" {
   domain = "vpc"
   tags   = { Name = "proyectobase-eip" }
