@@ -87,7 +87,7 @@ resource "aws_route_table_association" "public_rt_assoc" {
 # 3. SECURITY GROUP
 # --------------------------
 resource "aws_security_group" "web_sg" {
-  name        = "sg-fargate-web-access-final"
+  name        = "fargate-web-access-final"
   description = "Permitir HTTP y SSH"
   vpc_id      = aws_vpc.main_vpc.id
 
@@ -130,7 +130,7 @@ resource "aws_security_group" "web_sg" {
     }
   ]
 
-  tags = { Name = "sg-fargate-web-access-final" }
+  tags = { Name = "fargate-web-access-final" }
 }
 
 # --------------------------
