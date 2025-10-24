@@ -118,12 +118,12 @@ resource "aws_route_table_association" "public_a" {
 
 resource "aws_security_group" "web_sg" {
   name        = "proyectobase-sg"
-  description = "Permitir tráfico HTTP público"
+  description = "Permitir trafico HTTP publico"
   vpc_id      = aws_vpc.main.id
 
   ingress = [
     {
-      description      = "HTTP público"
+      description      = "HTTP publico"
       from_port        = 80
       to_port          = 80
       protocol         = "tcp"
