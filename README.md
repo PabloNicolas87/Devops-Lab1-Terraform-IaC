@@ -1,80 +1,116 @@
-# IaC – React Docker en AWS con Terraform
+# 🧱 DevOps-Lab1 – Infrastructure as Code (IaC) with Terraform
 
-Este proyecto contiene la **infraestructura como código (IaC)** para desplegar en AWS los recursos necesarios para ejecutar un pipeline CI/CD de una aplicación React containerizada.  
-La infraestructura se gestiona con **Terraform**, lo que permite crear y destruir recursos de forma automática, reproducible y segura.
-
----
-
-## 🚀 Recursos desplegados
-Con esta configuración se crean los siguientes servicios en AWS:
-
-- **Amazon ECR (Elastic Container Registry):** repositorio privado de imágenes Docker.  
-- **Amazon EC2 (Elastic Compute Cloud):** instancia virtual para ejecutar el contenedor.  
-- **Elastic IP:** dirección IP pública fija asociada a la instancia EC2.  
+This repository contains the **Infrastructure as Code (IaC)** configuration used to deploy on AWS the base environment required for the **DevOps-Lab1** project.  
+The infrastructure is fully managed with **Terraform**, allowing automated, repeatable, and secure provisioning and teardown of AWS resources.
 
 ---
 
-## 📂 Estructura del proyecto
+## 🚀 Deployed Resources
+
+This configuration creates the following core AWS components:
+
+- **Amazon ECR (Elastic Container Registry):** Private Docker image repository.  
+- **Amazon EC2 (Elastic Compute Cloud):** Virtual instance that runs the Docker container.  
+- **Elastic IP:** Fixed public IP address associated with the EC2 instance.  
+- **IAM Role & Instance Profile:** Grants permissions for EC2 to access ECR and use AWS Systems Manager (SSM).  
+- **VPC (Virtual Private Cloud):** Isolated network that hosts the instance, including subnet, route table, and Internet Gateway.  
+
+---
+
+## 🗺️ Architecture Overview
+
 ```
-iac-react-docker-ec2/
-├── main.tf        # Recursos principales (ECR, EC2, Elastic IP)
-├── variables.tf   # Variables configurables (región, tipo de instancia, AMI)
-├── outputs.tf     # Valores de salida (ECR URL, ID EC2, IP pública)
-├── .gitignore     # Archivos que no deben subirse a git
-└── README.md      # Documentación del proyecto
+                +--------------------------+
+                |      AWS Account         |
+                |                          |
+                |   +------------------+   |
+                |   |     ECR Repo     |   |
+                |   +------------------+   |
+                |            ↑             |
+                |   (Pull image via IAM)   |
+                |            |             |
+                |   +------------------+   |
+Internet ⇄ IGW ⇄ RT ⇄ Subnet ⇄ |  EC2 Instance  |
+                |   | (Docker + App)   |   |
+                |   +------------------+   |
+                |            ↓             |
+                |        Elastic IP        |
+                +--------------------------+
 ```
 
 ---
 
-## ⚙️ Requisitos previos
-1. **Terraform** instalado en tu máquina ([guía oficial](https://developer.hashicorp.com/terraform/downloads)).  
-2. **AWS CLI** configurado con un perfil que asuma el rol `TerraformRole`.  
-   - Ejemplo: `terraform-assumido` en `~/.aws/config`.  
-3. Una cuenta de AWS con permisos para crear/borrar recursos EC2, ECR y Elastic IP.
+## 📂 Project Structure
+
+```
+Devops-Terraform-IaC/
+├── main.tf        # Main Terraform configuration (VPC, IAM, ECR, EC2, Elastic IP)
+├── variables.tf   # Input variables (region, AMI, instance type)
+├── outputs.tf     # Output values (ECR URL, EC2 ID, public IP)
+├── .gitignore     # Ignored files and local state
+└── README.md      # Project documentation
+```
 
 ---
 
-## 📝 Uso
+## ⚙️ Requirements
 
-### 1. Inicializar Terraform
+Before applying this configuration, make sure you have:
+
+- **Terraform** installed → [Terraform installation guide](https://developer.hashicorp.com/terraform/downloads)  
+- **AWS CLI** configured with a profile that assumes a Terraform role  
+  Example: profile name `terraform-assumido` in `~/.aws/config`  
+- An **AWS account** with permissions to create and delete:  
+  - EC2 instances  
+  - ECR repositories  
+  - Elastic IPs  
+  - IAM roles and VPC networking components  
+
+---
+
+## 🧭 Usage
+
+### 1. Initialize Terraform
 ```bash
 terraform init
 ```
 
-### 2. Ver plan de ejecución
+### 2. Preview the execution plan
 ```bash
 terraform plan
 ```
 
-### 3. Aplicar cambios (crear recursos)
+### 3. Apply the configuration (create resources)
 ```bash
 terraform apply
 ```
-Confirma con `yes` cuando Terraform lo pida.
+Confirm with `yes` when prompted.
 
-Al finalizar, Terraform mostrará:
-- URL del repositorio ECR  
-- ID de la instancia EC2  
-- IP pública asignada
+After the deployment completes, Terraform will display:
 
-### 4. Destruir infraestructura (evitar costos)
+- The ECR repository URL  
+- The EC2 instance ID  
+- The assigned public IP address  
+
+### 4. Destroy all resources (to avoid extra costs)
 ```bash
 terraform destroy
 ```
-
-Esto elimina todos los recursos creados.
-
----
-
-## 🎯 Objetivo del proyecto
-Este repositorio es el segundo módulo de mi **Golden Path de Cloud Engineering**.  
-Aquí aprendo a manejar **infraestructura como código** para levantar de forma declarativa los mismos recursos que antes creaba manualmente.  
-El próximo paso será integrar servicios serverless (Lambda, S3, API Gateway).
+This command removes **every resource** created by this configuration.
 
 ---
 
-## 📌 Notas
-- La configuración usa una AMI de **Amazon Linux 2023** (`ami-0341d95f75f311023`) en `us-east-1`.  
-- El tipo de instancia por defecto es `t3.micro` (incluida en el Free Tier).  
-- Recordar ejecutar `terraform destroy` después de cada práctica.  
+## 🎯 Project Goal
 
+This repository is part of my **Cloud Engineering learning path (Golden Path)**.  
+Here I practice how to define and provision AWS infrastructure **declaratively** using Terraform — replicating the same setup I previously created manually.  
+
+---
+
+## 🧩 Technical Notes
+
+- Default AMI: **Amazon Linux 2023** (`ami-0199d4b5b8b4fde0e`) in **us-east-2**.  
+- Default instance type: **t3.micro** (Free Tier eligible).  
+- Networking includes a single public subnet and Internet Gateway for outbound traffic.  
+- EC2 User Data installs Docker, authenticates with ECR, pulls the latest image, and runs the container automatically.  
+- Always run `terraform destroy` after finishing your tests to avoid incurring charges.  
